@@ -1,0 +1,245 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Client to Server Communication</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/5.0.11/signalr.min.js"></script>
+</head>
+<body>
+    <h2>WebRTC Client</h2>
+    <input type="text" id="userMessage" placeholder="Type your message here..." />
+    <button onclick="sendMessageToServer()">Send Message to Server</button>
+    <button onclick="startScreenShare()">Share Screen</button>
+    <button onclick="shareCamera()">Share Camera</button>
+    <video id="sharedScreen" autoplay style="border: 1px solid #ddd; width: 400px; height: 300px; display: none;"></video>
+    <button id="stopShareButton" style="display:none;" onclick="stopSharing()">Stop Share</button>
+
+    <h3>Connected Clients</h3>
+    <ul id="clientList"></ul>
+
+    <script>
+        // Create a new SignalR connection instance
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/clientHub")  // Match the hub URL on the server
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        // Start the SignalR connection
+        connection.start().then(() => {
+            console.log("Connected to the SignalR server.");
+        }).catch(err => console.error("Error connecting to SignalR: ", err));
+
+        // Function to update the connected client list
+        connection.on("UpdateClientList", function (clients) {
+            const clientList = document.getElementById("clientList");
+            clientList.innerHTML = ""; // Clear the current list
+
+            // Add each client to the list with individual buttons for actions
+            clients.forEach(client => {
+
+                const listItem = document.createElement("li");
+                listItem.textContent = client.name; // Assuming client has a 'name' property
+
+                // Client name
+                const clientName = document.createElement("strong");
+                clientName.textContent = client.Name; // Assuming ClientInfo has a Name property
+                clientList.appendChild(clientName);
+
+                // Create a button for sending a message to this client
+                const messageButton = document.createElement("button");
+                messageButton.textContent = "Message";
+                messageButton.onclick = () => sendMessageToClient(client.ConnectionId);
+
+                // Create a button for sharing screen with this client
+                const shareScreenButton = document.createElement("button");
+                shareScreenButton.textContent = "Share Screen";
+                shareScreenButton.onclick = () => shareScreenWithClient(client.ConnectionId);
+
+                // Create a button for sharing camera with this client
+                const shareCameraButton = document.createElement("button");
+                shareCameraButton.textContent = "Share Camera";
+                shareCameraButton.onclick = () => shareCameraWithClient(client.ConnectionId);
+
+                // Append buttons to the client div
+                clientList.appendChild(messageButton);
+                clientList.appendChild(shareScreenButton);
+                clientList.appendChild(shareCameraButton);
+                clientList.appendChild(listItem);
+            });
+        });
+        // Global variables to store the active media stream and connection
+        let activeStream = null;
+
+        // Function to send a message to the server
+        function sendMessageToServer() {
+            const clientName = "Server"; // Replace with your client name logic
+            // Get the message from the input field
+            const message = document.getElementById("userMessage").value;
+
+            // Ensure the message is not empty before sending
+            if (message.trim() === "") {
+                alert("Please enter a message before sending.");
+                return;
+            }
+
+            // Invoke the BroadcastMessage method on the server with the client name and message
+            connection.invoke("BroadcastMessage", clientName, message)
+                .then(() => console.log("Message sent to server."))
+                .catch(err => console.error("Error sending message: ", err));
+
+
+        }
+
+
+        let previousImageData = null; // Store previous frame for comparison
+
+        async function startScreenShare() {
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { frameRate: { ideal: 30, max: 60 }, cursor: "always" }
+                });
+
+
+                const videoElement = document.createElement("video");
+                videoElement.srcObject = screenStream;
+                videoElement.play();
+
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+
+                setInterval(async () => {
+                    canvas.width = videoElement.videoWidth / 2;
+                    canvas.height = videoElement.videoHeight / 2;
+
+                    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                    // Extract pixel data to detect changes between frames
+                    const currentImageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+                    if (hasSignificantChange(currentImageData, previousImageData)) {
+                        const base64String = canvas
+                            .toDataURL("image/jpeg", 0.5)
+                            .split(',')[1]; // JPEG at 50% quality
+
+                        await connection.invoke("BroadcastScreen", base64String);
+                        previousImageData = currentImageData; // Save the current frame for comparison
+                    }
+                }, 100); // Capture and send frames every 100ms (10 FPS)
+
+            } catch (error) {
+                console.error("Error capturing screen:", error);
+            }
+        }
+
+        // Helper to compare two frames (basic pixel comparison)
+        function hasSignificantChange(currentImage, previousImage) {
+            if (!previousImage) return true; // Send the first frame
+
+            // Simple pixel comparison (can be optimized further)
+            let diff = 0;
+            for (let i = 0; i < currentImage.data.length; i += 4) {
+                diff += Math.abs(currentImage.data[i] - previousImage.data[i]);
+            }
+            return diff > 10000; // Send frame if significant difference detected
+        }
+
+
+        async function shareCamera() {
+            try {
+                // Get the camera stream using getUserMedia
+                const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+                // Show the local preview of the camera feed (optional)
+                const localCameraPreview = document.getElementById("sharedScreen");
+                localCameraPreview.srcObject = cameraStream;
+                localCameraPreview.play();
+
+                // Set the active stream to the camera stream
+                activeStream = cameraStream;
+
+                // Enable the Stop Share button and disable the other buttons
+                toggleShareButtons(true);
+
+                // Capture each frame from the camera stream and send it as an image to the server
+                const videoTrack = cameraStream.getVideoTracks()[0];
+                const imageCapture = new ImageCapture(videoTrack);
+
+                // Function to capture and send frames using requestAnimationFrame
+                async function captureAndSendFrame() {
+                    try {
+                        if (videoTrack.readyState === 'live') {  // Check if the track is still active
+                            const bitmap = await imageCapture.grabFrame();
+                            const canvas = document.createElement("canvas");
+                            canvas.width = bitmap.width / 2; // Reduce width to optimize size
+                            canvas.height = bitmap.height / 2; // Reduce height to optimize size
+
+                            const context = canvas.getContext("2d");
+                            context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+                            // Convert canvas content to a Base64 string
+                            const base64String = canvas.toDataURL("image/jpeg", 0.5).split(',')[1]; // Remove prefix
+
+                            // Send Base64 data to the server using SignalR
+                            try {
+                                await connection.invoke("BroadcastScreen", base64String);
+                            } catch (err) {
+                                console.error("Error sharing camera:", err);
+                            }
+                        }
+                        // Use requestAnimationFrame for smooth frame capture
+                        requestAnimationFrame(captureAndSendFrame);
+                    } catch (error) {
+                        console.error("Error capturing or sending frame: ", error);
+
+                        // Reinitialize camera stream if track becomes invalid
+                        if (videoTrack.readyState !== 'live') {
+                            console.log("Reinitializing camera stream...");
+                            //await shareCamera(); // Reinitialize camera sharing
+                        }
+                    }
+                }
+                // Start capturing and sending frames
+                captureAndSendFrame();
+
+                // Handle track end event
+                videoTrack.onended = () => {
+                    console.log("Camera stream ended.");
+                    toggleShareButtons(false);
+                    // Additional cleanup or reinitialization if needed
+                };
+
+
+
+            } catch (error) {
+                console.error("Error accessing camera: ", error);
+            }
+        }
+
+
+        // Function to stop the active sharing (screen or camera)
+        function stopSharing() {
+            if (activeStream) {
+                // Stop all tracks in the active stream
+                activeStream.getTracks().forEach(track => track.stop());
+
+                // Clear the video preview element
+                const localPreview = document.getElementById("sharedScreen");
+                localPreview.srcObject = null;
+
+                // Reset the active stream variable
+                activeStream = null;
+
+                // Disable the Stop Share button and enable the other buttons
+                toggleShareButtons(false);
+            }
+        }
+
+        // Function to toggle the state of the share buttons
+        function toggleShareButtons(isSharing) {
+            document.getElementById("stopShareButton").style.display = isSharing ? 'inline-block' : 'none';
+            document.querySelector('button[onclick="startScreenShare()"]').disabled = isSharing;
+            document.querySelector('button[onclick="shareCamera()"]').disabled = isSharing;
+        }
+
+    </script>
+</body>
+</html>

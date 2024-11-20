@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35017.193
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScreenShareWPF", "ScreenShareWPF\ScreenShareWPF\ScreenShareWPF.csproj", "{98EDA95A-40E1-478B-94FC-3207BC232931}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SignalRWeb", "SignalRWeb\SignalRWeb.csproj", "{3853CD03-23E3-4190-8091-EEF2166DD6A9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{98EDA95A-40E1-478B-94FC-3207BC232931}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98EDA95A-40E1-478B-94FC-3207BC232931}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98EDA95A-40E1-478B-94FC-3207BC232931}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98EDA95A-40E1-478B-94FC-3207BC232931}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3853CD03-23E3-4190-8091-EEF2166DD6A9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3853CD03-23E3-4190-8091-EEF2166DD6A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3853CD03-23E3-4190-8091-EEF2166DD6A9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3853CD03-23E3-4190-8091-EEF2166DD6A9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {400454C3-3457-482B-997B-CFF27DF5243A}
+	EndGlobalSection
+EndGlobal
